@@ -8,9 +8,13 @@ Building
 
 This is a Java/Maven project, so build and run using:
 
+```
 mvn -q compile exec:java -Dexec.args="hostname port pin" -Djava.util.logging.config.file=${basedir}/logging.properties
+```
 
 To enable verbose protocol logging, you can remove the last -D command line option.
 
+```
 mvn -q compile exec:java -Dexec.args="hostname port pin"
+```
 
