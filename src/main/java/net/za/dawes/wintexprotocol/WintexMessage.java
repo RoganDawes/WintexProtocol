@@ -36,13 +36,38 @@ public class WintexMessage {
 
     public String toString() {
         try {
-        if (type == 'I' || type == 'W')
-            return "Config (" + Integer.toHexString(addr(data, 0, 3)) + "/" + addr(data, 0, 3) + ") " + ((int) (data[3] & 0xFF))
-                    + " bytes : " + Xxd.dump(getMemory(this));
-        return String.format("%c:%s", (char) type, Xxd.dump(data));
+            if (type == 'O' || type == 'R') {
+                String location = (type == 'O' ? "Config" : "Transient");
+                return "Read " + location + " @ (0x" + Integer.toHexString(addr(data, 0, 3)) + "/" + addr(data, 0, 3) + ") "
+                        + ((int) (data[3] & 0xFF)) + " bytes";
+            }
+            if (type == 'I' || type == 'W') {
+                String location = (type == 'I' ? "Config" : "Transient");
+                return "Read " + location + " @ (0x" + Integer.toHexString(addr(data, 0, 3)) + "/" + addr(data, 0, 3) + ") "
+                        + ((int) (data[3] & 0xFF)) + " bytes\n" + Xxd.dump(getMemory(this));
+            }
+            return String.format("%c:%s", (char) type, Xxd.dump(data));
         } catch (Exception e) {
             return e.getLocalizedMessage() + " printing type " + ((char) type);
         }
+    }
+
+    public static WintexMessage fromBytes(byte[] bytes) {
+        if (bytes == null) {
+            throw new NullPointerException("data");
+        }
+        if (bytes.length < 3) {
+            throw new IndexOutOfBoundsException(
+                    "Expected a minimum length of 3, got " + bytes.length + " : " + Xxd.dump(bytes));
+        }
+        if (bytes.length != bytes[0]) {
+            throw new IndexOutOfBoundsException(
+                    "Expected " + bytes[0] + ", but got " + bytes.length + " : " + Xxd.dump(bytes));
+        }
+        char type = (char) bytes[1];
+        byte[] data = new byte[bytes.length - 3];
+        System.arraycopy(bytes, 2, data, 0, data.length);
+        return new WintexMessage(type, data);
     }
 
     public static WintexMessage login(byte[] udl) {
@@ -84,7 +109,7 @@ public class WintexMessage {
         byte A = (byte) ((addr >> 16));
         byte B = (byte) ((addr >> 8));
         byte C = (byte) ((addr >> 0));
-        byte[] msg = new byte[4+data.length];
+        byte[] msg = new byte[4 + data.length];
         System.arraycopy(new byte[] { A, B, C, (byte) (data.length & 0xFF) }, 0, msg, 0, 4);
         System.arraycopy(data, 0, msg, 4, data.length);
         return new WintexMessage(type, msg);
@@ -97,9 +122,9 @@ public class WintexMessage {
             System.arraycopy(msg.getData(), 4, data, 0, data.length);
             return data;
         }
-        throw new RuntimeException("Wrong message type: " + ((char)msg.getType()));
+        throw new RuntimeException("Wrong message type: " + ((char) msg.getType()));
     }
-    
+
     private static WintexMessage readTransientMemory(int addr, int len) {
         return readMemory('R', addr, len);
     }
@@ -138,14 +163,15 @@ public class WintexMessage {
 
     public static WintexMessage getZoneNames(int zone) {
         int base = 0; // Not sure if this applies to other panels, works for Premier 832
-        int count = 8; // may need to be configured per panel, but 8 seems to be the Lowest Common Denominator
+        int count = 8; // may need to be configured per panel, but 8 seems to be the Lowest Common
+                       // Denominator
         return readConfigurationMemory(base + (zone * 0x10), count * 0x10);
     }
 
     private static int getStrings(String[] strings, int off, byte[] data, int len) {
-        int i=0;
-        for (i=0; i<strings.length-off && i * len < data.length; i++) {
-            strings[off+i] = new String(data, i*len, len).trim();
+        int i = 0;
+        for (i = 0; i < strings.length - off && i * len < data.length; i++) {
+            strings[off + i] = new String(data, i * len, len).trim();
         }
         return i;
     }
@@ -158,27 +184,27 @@ public class WintexMessage {
             throw new RuntimeException("Out of range zone name query, zoneBase = " + zoneBase);
         return getStrings(zones, zoneBase, data, 0x10);
     }
-    
+
     public static WintexMessage getUserNames(int user) {
-        int base = 0x002000 ; // Not sure if this applies to other panels, works for Premier 832
+        int base = 0x002000; // Not sure if this applies to other panels, works for Premier 832
         int count = 8; // may need to be configured per panel
         return readConfigurationMemory(base + (user * 0x08), count * 0x08);
     }
 
     public static int updateUserNames(String[] users, WintexMessage msg) {
-        int base = 0x002000 ; // again, maybe only the 832?
+        int base = 0x002000; // again, maybe only the 832?
         byte[] data = getMemory(msg);
         int userBase = (addr(msg.getData(), 0, 3) - base) / 0x08;
         if (userBase < 0 || userBase > users.length)
             throw new RuntimeException("Out of range username query, userBase = " + userBase);
         return getStrings(users, userBase, data, 0x08);
     }
-    
+
     public static WintexMessage setLCDText(String text) {
-        if (text.length() > 0x20) 
-            text = text.substring(0,0x20);
+        if (text.length() > 0x20)
+            text = text.substring(0, 0x20);
         else if (text.length() < 0x20)
-            for (int i=text.length(); i<20; i++)
+            for (int i = text.length(); i < 20; i++)
                 text = text + " ";
         return writeTransientMemory(0x000C5C, text.getBytes());
     }
