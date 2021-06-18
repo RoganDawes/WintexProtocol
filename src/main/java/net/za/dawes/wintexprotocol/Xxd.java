@@ -63,6 +63,6 @@ public class Xxd {
                 stream.printf("\n");
             }
         }
-        return bstream.toString();
+        return bstream.toString().substring(0, bstream.size()-1);
     }
 }

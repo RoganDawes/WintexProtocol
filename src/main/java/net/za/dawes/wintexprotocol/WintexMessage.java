@@ -26,25 +26,38 @@ public class WintexMessage {
         return data;
     }
 
-    private static int addr(byte[] data, int off, int len) {
-        int addr = 0;
-        for (int i = off; i < len; i++) {
-            addr = (addr << 8) + ((int) data[i] & 0xFF);
+    public int addr() {
+        if (type == 'W' || type == 'I' || type == 'O' || type == 'R') {
+            int addr = 0;
+            for (int i = 0; i < 3; i++) {
+                addr = (addr << 8) + ((int) data[i] & 0xFF);
+            }
+            return addr;
         }
-        return addr;
+        throw new RuntimeException("Wrong message type: " + ((char) getType()));
+    }
+
+    public byte[] getMemory() {
+        if (getType() == 'W' || getType() == 'I') {
+            int len = getData()[3] & 0xFF;
+            byte[] data = new byte[len];
+            System.arraycopy(getData(), 4, data, 0, data.length);
+            return data;
+        }
+        throw new RuntimeException("Wrong message type: " + ((char) getType()));
     }
 
     public String toString() {
         try {
             if (type == 'O' || type == 'R') {
                 String location = (type == 'O' ? "Config" : "Transient");
-                return "Read " + location + " @ (0x" + Integer.toHexString(addr(data, 0, 3)) + "/" + addr(data, 0, 3) + ") "
+                return "Read " + location + " @ (0x" + Integer.toHexString(addr()) + "/" + addr() + ") "
                         + ((int) (data[3] & 0xFF)) + " bytes";
             }
             if (type == 'I' || type == 'W') {
                 String location = (type == 'I' ? "Config" : "Transient");
-                return "Read " + location + " @ (0x" + Integer.toHexString(addr(data, 0, 3)) + "/" + addr(data, 0, 3) + ") "
-                        + ((int) (data[3] & 0xFF)) + " bytes\n" + Xxd.dump(getMemory(this));
+                return "Read " + location + " @ (0x" + Integer.toHexString(addr()) + "/" + addr() + ") "
+                        + ((int) (data[3] & 0xFF)) + " bytes\n" + Xxd.dump(getMemory());
             }
             return String.format("%c:%s", (char) type, Xxd.dump(data));
         } catch (Exception e) {
@@ -115,16 +128,6 @@ public class WintexMessage {
         return new WintexMessage(type, msg);
     }
 
-    private static byte[] getMemory(WintexMessage msg) {
-        if (msg.getType() == 'W' || msg.getType() == 'I') {
-            int len = msg.getData()[3] & 0xFF;
-            byte[] data = new byte[len];
-            System.arraycopy(msg.getData(), 4, data, 0, data.length);
-            return data;
-        }
-        throw new RuntimeException("Wrong message type: " + ((char) msg.getType()));
-    }
-
     private static WintexMessage readTransientMemory(int addr, int len) {
         return readMemory('R', addr, len);
     }
@@ -178,8 +181,8 @@ public class WintexMessage {
 
     public static int updateZoneNames(String[] zones, WintexMessage msg) {
         int base = 0; // again, maybe only the 832?
-        byte[] data = getMemory(msg);
-        int zoneBase = (addr(msg.getData(), 0, 3) - base) / 0x10;
+        byte[] data = msg.getMemory();
+        int zoneBase = (msg.addr() - base) / 0x10;
         if (zoneBase < 0 || zoneBase > zones.length)
             throw new RuntimeException("Out of range zone name query, zoneBase = " + zoneBase);
         return getStrings(zones, zoneBase, data, 0x10);
@@ -193,8 +196,8 @@ public class WintexMessage {
 
     public static int updateUserNames(String[] users, WintexMessage msg) {
         int base = 0x002000; // again, maybe only the 832?
-        byte[] data = getMemory(msg);
-        int userBase = (addr(msg.getData(), 0, 3) - base) / 0x08;
+        byte[] data = msg.getMemory();
+        int userBase = (msg.addr() - base) / 0x08;
         if (userBase < 0 || userBase > users.length)
             throw new RuntimeException("Out of range username query, userBase = " + userBase);
         return getStrings(users, userBase, data, 0x08);
